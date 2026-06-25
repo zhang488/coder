@@ -1,0 +1,576 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
+    sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: #1e1e1e;
+  color: #e0e0e0;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* 主体：左侧边栏 + 右主区 */
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 折叠后展开按钮 */
+.expand-btn {
+  width: 24px;
+  background: #18181a;
+  color: #bbb;
+  border: none;
+  border-right: 1px solid #333;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.expand-btn:hover {
+  background: #2a2a2c;
+  color: #fff;
+}
+
+/* 左侧边栏 */
+.sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: #18181a;
+  border-right: 1px solid #2a2a2c;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-head .brand {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6e6e6;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.icon-btn:hover {
+  background: #2a2a2c;
+  color: #fff;
+}
+
+.new-session {
+  background: #5865f2;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.new-session:hover {
+  background: #6b76f5;
+}
+
+.sidebar .search {
+  background: #2a2a2c;
+  color: #e0e0e0;
+  border: 1px solid #3a3a3c;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.section-title {
+  font-size: 11px;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sidebar .hint {
+  font-size: 12px;
+  color: #666;
+  padding: 6px 4px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.session-item:hover {
+  background: #232325;
+}
+
+.session-item.active {
+  background: #2d2f3a;
+}
+
+/* 已关闭的历史会话：整体弱化 */
+.session-item.closed .name {
+  color: #999;
+}
+
+.session-item .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.session-item .meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-item .name {
+  font-size: 13px;
+  color: #ddd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-item .sub {
+  font-size: 11px;
+  color: #777;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-item .close {
+  color: #777;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 3px;
+  flex-shrink: 0;
+  visibility: hidden;
+}
+
+.session-item:hover .close {
+  visibility: visible;
+}
+
+.session-item .close:hover {
+  background: #555;
+  color: #fff;
+}
+
+/* 底部状态栏 */
+.statusbar {
+  flex-shrink: 0;
+  height: 24px;
+  background: #18181a;
+  border-top: 1px solid #2a2a2c;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 8px;
+  font-size: 12px;
+  color: #aaa;
+  overflow: hidden;
+}
+
+.statusbar .seg {
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.statusbar .seg.path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: "Consolas", monospace;
+  color: #888;
+}
+
+.statusbar .seg.muted {
+  color: #666;
+}
+
+.statusbar .seg.status.running {
+  color: #4ec9b0;
+}
+
+.statusbar .seg.status.exited {
+  color: #f48771;
+}
+
+.statusbar .seg.status.starting {
+  color: #c9a26d;
+}
+
+.app.loading,
+.app .empty {
+  align-items: center;
+  justify-content: center;
+  color: #9d9d9d;
+  gap: 12px;
+}
+
+.app .empty {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app .empty button {
+  background: #0e639c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+/* 标签栏 */
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  background: #252526;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+  height: 36px;
+  overflow-x: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  max-width: 200px;
+  border-right: 1px solid #1e1e1e;
+  background: #2d2d2d;
+  cursor: pointer;
+  font-size: 13px;
+  color: #bbb;
+  user-select: none;
+}
+
+.tab.active {
+  background: #1e1e1e;
+  color: #fff;
+}
+
+.tab .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tab .tab-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab .tab-close {
+  margin-left: 2px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 3px;
+  color: #999;
+}
+
+.tab .tab-close:hover {
+  background: #555;
+  color: #fff;
+}
+
+.tab-new {
+  background: transparent;
+  color: #bbb;
+  border: none;
+  padding: 0 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.tab-new:hover {
+  background: #2d2d2d;
+  color: #fff;
+}
+
+/* 终端面板容器 */
+.panes {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* 弹层 */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  padding: 20px 24px;
+  width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal h3 {
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.modal label {
+  font-size: 12px;
+  color: #9d9d9d;
+  margin-top: 8px;
+}
+
+.modal input,
+.modal select {
+  background: #3c3c3c;
+  color: #e0e0e0;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.modal .row {
+  display: flex;
+  gap: 8px;
+}
+
+.modal .row input {
+  flex: 1;
+}
+
+.modal .row button,
+.modal-actions button {
+  background: #0e639c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.modal-actions .secondary {
+  background: #444;
+}
+
+/* 关闭询问对话框 */
+.close-dialog .tip {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.6;
+  margin: 4px 0 8px;
+}
+
+.close-dialog .remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #9d9d9d;
+  cursor: pointer;
+}
+
+.close-dialog .remember input {
+  width: auto;
+}
+
+/* 顶部工具栏 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.toolbar button {
+  background: #0e639c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.toolbar button:hover {
+  background: #1177bb;
+}
+
+.toolbar button:disabled {
+  background: #444;
+  cursor: not-allowed;
+}
+
+.toolbar .cwd {
+  font-size: 12px;
+  color: #9d9d9d;
+  margin-left: auto;
+  font-family: "Consolas", monospace;
+}
+
+.status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.status.running {
+  color: #4ec9b0;
+}
+
+.status.exited {
+  color: #f48771;
+}
+
+/* 终端加载失败提示 */
+.pane-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #f48771;
+}
+
+.pane-error code {
+  color: #9d9d9d;
+  font-size: 12px;
+  max-width: 80%;
+  text-align: center;
+}
+
+.pane-error button {
+  background: #0e639c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+/* 终端容器：在 .panes 内绝对定位铺满，多个面板叠放，用 display 切换 */
+.terminal-host {
+  position: absolute;
+  inset: 0;
+  background: #1e1e1e;
+}
+
+.terminal-host .xterm {
+  height: 100%;
+  padding: 4px;
+}
+
+/* IME 候选框跟随光标：textarea 字体与终端一致，定位由 JS 同步到光标 */
+.terminal-host .xterm-helper-textarea {
+  font-family: "Consolas", "Courier New", monospace !important;
+  font-size: 14px !important;
+}
+
+/* 滚动条槽常驻，避免出现/消失改变可用宽度导致列数横跳、画面抖动 */
+.terminal-host .xterm-viewport {
+  overflow-y: scroll !important;
+}
+
+.terminal-host .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+}
+
+.terminal-host .xterm-viewport::-webkit-scrollbar-thumb {
+  background: #3a3a3c;
+  border-radius: 5px;
+}
+
+.terminal-host .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}

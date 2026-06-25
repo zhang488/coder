@@ -1,0 +1,30 @@
+[package]
+name = "coder"
+version = "0.1.0"
+description = "多标签管理 Claude Code 与 Gemini CLI 会话的桌面端工具"
+authors = ["you"]
+edition = "2021"
+
+# 库与可执行入口：lib 供桌面/移动端复用，bin 为桌面入口
+[lib]
+name = "coder_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+portable-pty = "0.8"
+uuid = { version = "1", features = ["v4"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

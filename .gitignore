@@ -1,0 +1,18 @@
+# 依赖
+node_modules
+.pnpm-store
+
+# 前端构建产物
+dist
+dist-ssr
+*.local
+
+# Rust / Tauri
+src-tauri/target
+src-tauri/gen
+
+# 编辑器
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store

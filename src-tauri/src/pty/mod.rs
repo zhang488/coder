@@ -1,0 +1,198 @@
+//! PTY 进程管理：每个标签对应一个伪终端进程。
+//!
+//! 通过 `portable-pty` 启动真实 CLI 进程（Windows 走 ConPTY），
+//! 后台线程读取输出并经 Tauri `Channel` 推送到前端；前端输入经
+//! `pty_write` 写回；尺寸变化经 `pty_resize` 同步。
+
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::sync::Mutex;
+
+use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
+use serde::Serialize;
+use tauri::State;
+use tauri::ipc::Channel;
+
+/// 推送给前端的 PTY 事件。
+/// 序列化为 `{ event: "output", data: [..] }` 或 `{ event: "exit", code }`。
+#[derive(Clone, Serialize)]
+#[serde(tag = "event", rename_all = "lowercase")]
+pub enum PtyEvent {
+    Output { data: Vec<u8> },
+    Exit { code: Option<i32> },
+}
+
+/// 单个 PTY 的句柄，保存写入端、主控端（用于 resize）与终止器。
+struct PtyHandle {
+    master: Box<dyn MasterPty + Send>,
+    writer: Box<dyn Write + Send>,
+    killer: Box<dyn ChildKiller + Send + Sync>,
+    /// 子进程 pid，用于在 Windows 上 taskkill 整个进程树
+    #[allow(dead_code)]
+    pid: Option<u32>,
+}
+
+/// 全局 PTY 管理器，作为 Tauri 托管状态。
+#[derive(Default)]
+pub struct PtyManager {
+    map: Mutex<HashMap<String, PtyHandle>>,
+}
+
+/// 启动一个 PTY 进程，返回后端分配的句柄 id。
+#[tauri::command]
+pub fn pty_spawn(
+    state: State<'_, PtyManager>,
+    program: String,
+    args: Vec<String>,
+    cwd: String,
+    cols: u16,
+    rows: u16,
+    on_event: Channel<PtyEvent>,
+) -> Result<String, String> {
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("openpty 失败: {e}"))?;
+
+    // Windows 上 claude/gemini 等 CLI 多由 npm 安装，本体是 .cmd/.ps1 脚本或
+    // 无扩展名 shell 脚本，CreateProcessW 无法直接执行（os error 193）。
+    // 统一经 cmd.exe /c 启动，让其按 PATHEXT 解析到 .cmd/.exe。
+    // 若用户已给出 .exe 全路径，cmd /c 同样可直接执行。
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = CommandBuilder::new("cmd.exe");
+        c.arg("/c");
+        c.arg(&program);
+        for a in &args {
+            c.arg(a);
+        }
+        c
+    };
+    #[cfg(not(windows))]
+    let mut cmd = {
+        let mut c = CommandBuilder::new(&program);
+        for a in &args {
+            c.arg(a);
+        }
+        c
+    };
+    cmd.cwd(&cwd);
+
+    let mut child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| format!("启动进程失败 ({program}): {e}"))?;
+
+    // slave 在 spawn 后即可释放，避免句柄泄漏导致 EOF 收不到
+    drop(pair.slave);
+
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("获取输出流失败: {e}"))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("获取输入流失败: {e}"))?;
+    let killer = child.clone_killer();
+    let pid = child.process_id();
+
+    let id = uuid::Uuid::new_v4().to_string();
+
+    // 读线程：持续读取 PTY 输出，EOF 后等待子进程退出并上报退出码
+    let event_channel = on_event.clone();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 8192];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break, // EOF
+                Ok(n) => {
+                    if event_channel
+                        .send(PtyEvent::Output {
+                            data: buf[..n].to_vec(),
+                        })
+                        .is_err()
+                    {
+                        break; // 前端通道已关闭
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        let code = child.wait().ok().map(|s| s.exit_code() as i32);
+        let _ = event_channel.send(PtyEvent::Exit { code });
+    });
+
+    state.map.lock().unwrap().insert(
+        id.clone(),
+        PtyHandle {
+            master: pair.master,
+            writer,
+            killer,
+            pid,
+        },
+    );
+
+    Ok(id)
+}
+
+/// 向 PTY 写入输入。
+#[tauri::command]
+pub fn pty_write(state: State<'_, PtyManager>, id: String, data: String) -> Result<(), String> {
+    let mut map = state.map.lock().unwrap();
+    let handle = map.get_mut(&id).ok_or("PTY 不存在")?;
+    handle
+        .writer
+        .write_all(data.as_bytes())
+        .map_err(|e| format!("写入失败: {e}"))?;
+    handle.writer.flush().map_err(|e| format!("flush 失败: {e}"))?;
+    Ok(())
+}
+
+/// 同步终端尺寸到 PTY。
+#[tauri::command]
+pub fn pty_resize(
+    state: State<'_, PtyManager>,
+    id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    let map = state.map.lock().unwrap();
+    let handle = map.get(&id).ok_or("PTY 不存在")?;
+    handle
+        .master
+        .resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("resize 失败: {e}"))?;
+    Ok(())
+}
+
+/// 强制结束 PTY 进程并清理句柄。
+#[tauri::command]
+pub fn pty_kill(state: State<'_, PtyManager>, id: String) -> Result<(), String> {
+    let mut map = state.map.lock().unwrap();
+    if let Some(mut handle) = map.remove(&id) {
+        // Windows 上 cmd /c 启动的进程为父进程，需 taskkill /T 杀整棵树，
+        // 否则 node 等子进程会残留为僵尸。
+        #[cfg(windows)]
+        if let Some(pid) = handle.pid {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .output();
+        }
+        let _ = handle.killer.kill();
+    }
+    Ok(())
+}
