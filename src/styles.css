@@ -357,6 +357,29 @@ body {
   color: #666;
 }
 
+/* 上下文用量段 */
+.statusbar .seg.ctx {
+  color: #bbb;
+}
+
+.statusbar .seg.ctx .muted {
+  color: #777;
+}
+
+/* Antigravity 用量段：靠右显示 */
+.statusbar .seg.usage {
+  margin-left: auto;
+  color: #bbb;
+}
+
+.statusbar .seg.usage.err {
+  color: #d7846a;
+}
+
+.statusbar .seg.usage .muted {
+  color: #777;
+}
+
 .statusbar .seg.status.running {
   color: #4ec9b0;
 }

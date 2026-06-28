@@ -12,6 +12,32 @@ import { useTabsStore } from "../stores/tabs";
 const TERMINAL_FONT =
   '"Caskaydia Cove Nerd Font Mono", "Consolas", "Courier New", monospace';
 
+/** 去除 ANSI CSI 转义序列（ESC [ ... 终止字母），便于文本解析 */
+const ESC = String.fromCharCode(27);
+const CSI_RE = new RegExp(ESC + "\\[[0-9;?]*[ -/]*[@-~]", "g");
+function stripAnsi(input: string): string {
+  return input.replace(CSI_RE, "");
+}
+
+/**
+ * 从 agy `/context` 输出解析上下文用量。
+ * 摘要行形如：`... · 54.5k/1.0M tokens` 紧随 `(5.2%)`。
+ * 分类明细里的 `N tokens (X%)` 不含斜杠，故用斜杠 token 行精确定位总用量。
+ */
+function parseContextUsage(
+  text: string,
+): { used: string; total: string; percent: number | null } | null {
+  const m = text.match(/([\d.]+[kKMm]?)\s*\/\s*([\d.]+[kKMm]?)\s*tokens/);
+  if (!m) return null;
+  const after = text.slice((m.index ?? 0) + m[0].length);
+  const pm = after.match(/\(\s*([\d.]+)\s*%\s*\)/); // 紧随其后的总体百分比
+  return {
+    used: m[1],
+    total: m[2],
+    percent: pm ? parseFloat(pm[1]) : null,
+  };
+}
+
 interface TerminalPaneProps {
   tabId: string;
   provider: string;
@@ -42,6 +68,10 @@ export default function TerminalPane({
   const activeRef = useRef(active);
   const lastSize = useRef({ cols: 0, rows: 0 });
   const setRuntime = useTabsStore((s) => s.setRuntime);
+  const setContextUsage = useTabsStore((s) => s.setContextUsage);
+  // 解析 /context 输出的滚动文本缓冲（仅 antigravity 用）
+  const scanBuf = useRef("");
+  const decoder = useRef(new TextDecoder());
 
   // 仅在尺寸真正变化时才 fit + resize PTY，消除临界宽度下的列数横跳
   const sync = () => {
@@ -184,7 +214,20 @@ export default function TerminalPane({
         const id = await spawnPty({ program, args, cwd, cols, rows }, (ev) => {
           if (disposed) return;
           if (ev.event === "output") {
-            term.write(new Uint8Array(ev.data));
+            const bytes = new Uint8Array(ev.data);
+            term.write(bytes);
+            // antigravity：被动解析 /context 输出里的上下文用量
+            if (provider === "antigravity") {
+              const chunk = decoder.current.decode(bytes, { stream: true });
+              // 只在出现 tokens 关键词时才做较重的解析，降低开销
+              let buf = scanBuf.current + chunk;
+              if (buf.length > 6000) buf = buf.slice(-6000);
+              scanBuf.current = buf;
+              if (chunk.includes("token") || chunk.includes("%")) {
+                const usage = parseContextUsage(stripAnsi(scanBuf.current));
+                if (usage) setContextUsage(tabId, usage);
+              }
+            }
           } else if (ev.event === "exit") {
             term.write(
               `\r\n\x1b[33m[进程已退出，退出码 ${ev.code ?? "未知"}]\x1b[0m\r\n`,

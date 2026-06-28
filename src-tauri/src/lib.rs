@@ -37,6 +37,7 @@ pub fn run() {
             tray::hide_to_tray,
             tray::quit_app,
             agy::agy_list_conversations,
+            agy::agy_usage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

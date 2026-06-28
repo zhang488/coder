@@ -11,3 +11,17 @@ export async function agyListConversations(): Promise<string[]> {
     return [];
   }
 }
+
+/** 单个模型的订阅配额桶 */
+export interface QuotaBucket {
+  modelId: string;
+  tokenType: string;
+  /** 剩余比例 0~1（1 表示满额未用） */
+  remainingFraction: number;
+  resetTime: string | null;
+}
+
+/** 查询 Antigravity/Gemini 订阅配额（各模型剩余比例与重置时间） */
+export async function agyUsage(): Promise<QuotaBucket[]> {
+  return invoke<QuotaBucket[]>("agy_usage");
+}

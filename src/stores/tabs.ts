@@ -36,6 +36,16 @@ const freshRuntime = (mode: LaunchMode): TabRuntime => ({
 /** 正在进行会话 id 捕获轮询的定时器，key 为 tab.id */
 const captureTimers = new Map<string, ReturnType<typeof setInterval>>();
 
+/** 上下文窗口用量（解析 agy `/context` 输出获得） */
+export interface ContextUsage {
+  /** 已用 token 显示值，如 "54.5k" */
+  used: string;
+  /** 总量显示值，如 "1.0M" */
+  total: string;
+  /** 占用百分比 */
+  percent: number | null;
+}
+
 interface TabsState {
   tabs: TabRecord[];
   /** 历史会话（已关闭，可恢复） */
@@ -43,6 +53,8 @@ interface TabsState {
   activeId: string | null;
   /** 各标签的运行时状态，key 为 tab.id */
   runtime: Record<string, TabRuntime>;
+  /** 各标签的上下文用量，key 为 tab.id */
+  contextUsage: Record<string, ContextUsage>;
 
   loadAll: () => Promise<void>;
   loadHistory: () => Promise<void>;
@@ -60,6 +72,8 @@ interface TabsState {
   setRuntime: (id: string, patch: Partial<TabRuntime>) => void;
   /** 回填某标签解析/捕获到的真实会话 id */
   patchSessionId: (id: string, sessionId: string) => void;
+  /** 记录某标签解析到的上下文用量 */
+  setContextUsage: (id: string, usage: ContextUsage) => void;
 }
 
 export const useTabsStore = create<TabsState>((set, get) => ({
@@ -67,6 +81,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   history: [],
   activeId: null,
   runtime: {},
+  contextUsage: {},
 
   async loadAll() {
     const [tabs, history] = await Promise.all([tabsList(), historyList()]);
@@ -159,6 +174,10 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     set((s) => ({
       tabs: s.tabs.map((t) => (t.id === id ? { ...t, sessionId } : t)),
     }));
+  },
+
+  setContextUsage(id, usage) {
+    set((s) => ({ contextUsage: { ...s.contextUsage, [id]: usage } }));
   },
 }));
 
