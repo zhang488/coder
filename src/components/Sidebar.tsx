@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTabsStore } from "../stores/tabs";
 import { PROVIDERS, PROVIDER_KEYS } from "../lib/providers";
+import SessionPopover from "./SessionPopover";
+import type { TabRecord } from "../lib/db";
 
 interface SidebarProps {
   /** 当前选中的 provider（筛选 + 新建默认） */
@@ -39,6 +41,25 @@ export default function Sidebar({
 
   const [keyword, setKeyword] = useState("");
   const kw = keyword.trim().toLowerCase();
+
+  // 悬停浮层：延迟显示/隐藏，避免移动时闪烁
+  const [hover, setHover] = useState<{
+    tab: TabRecord;
+    anchor: { x: number; y: number };
+  } | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showPopover = (tab: TabRecord, el: HTMLElement) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    const r = el.getBoundingClientRect();
+    hoverTimer.current = setTimeout(() => {
+      setHover({ tab, anchor: { x: r.right, y: r.top } });
+    }, 350);
+  };
+  const hidePopover = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHover(null), 200);
+  };
 
   const openIds = new Set(tabs.map((t) => t.id));
   // 按 provider 筛选 + 关键词过滤；打开的在前，历史在后
@@ -120,7 +141,8 @@ export default function Sidebar({
                   isOpen ? "" : "closed"
                 }`}
                 onClick={() => (isOpen ? setActive(t.id) : reopenTab(t.id))}
-                title={isOpen ? t.cwd : `${t.cwd}\n点击恢复并续接上次对话`}
+                onMouseEnter={(e) => showPopover(t, e.currentTarget)}
+                onMouseLeave={hidePopover}
               >
                 <span
                   className="dot"
@@ -151,6 +173,22 @@ export default function Sidebar({
           })
         )}
       </div>
+
+      {hover && (
+        <div
+          onMouseEnter={() => {
+            if (hoverTimer.current) clearTimeout(hoverTimer.current);
+          }}
+          onMouseLeave={hidePopover}
+        >
+          <SessionPopover
+            provider={hover.tab.provider}
+            cwd={hover.tab.cwd}
+            sessionId={hover.tab.sessionId}
+            anchor={hover.anchor}
+          />
+        </div>
+      )}
     </div>
   );
 }

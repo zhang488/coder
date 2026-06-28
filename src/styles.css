@@ -278,6 +278,84 @@ body {
   color: #999;
 }
 
+/* 会话悬停浮层 */
+.session-popover {
+  position: fixed;
+  z-index: 200;
+  width: 320px;
+  max-height: 360px;
+  background: #202022;
+  border: 1px solid #3a3a3c;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pop-path {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 11px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  font-size: 12px;
+  color: #ccc;
+}
+
+.pop-path:hover {
+  background: #2a2a2c;
+  color: #fff;
+}
+
+.pop-path-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "Consolas", monospace;
+}
+
+.pop-open {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.pop-title {
+  padding: 8px 11px 4px;
+  font-size: 11px;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pop-list {
+  overflow-y: auto;
+  padding: 0 6px 8px;
+}
+
+.pop-item {
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: #ddd;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pop-item:hover {
+  background: #2a2a2c;
+}
+
+.pop-hint {
+  padding: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
 .session-item .dot {
   width: 8px;
   height: 8px;
