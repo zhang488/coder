@@ -30,6 +30,7 @@ export default function App() {
   const [lastCwd, setLastCwd] = useState<string | undefined>(undefined);
   const [collapsed, setCollapsed] = useState(false);
   const [showClose, setShowClose] = useState(false);
+  const [provider, setProvider] = useState("claude");
 
   // 启动恢复：从 DB 读取标签布局（P2-3）
   useEffect(() => {
@@ -82,13 +83,10 @@ export default function App() {
     else await quitApp();
   };
 
-  const handleConfirm = async (
-    provider: string,
-    cwd: string,
-    title: string,
-  ) => {
+  const handleConfirm = async (prov: string, cwd: string, title: string) => {
     setShowNew(false);
-    await addTab(provider, cwd, title);
+    setProvider(prov); // 同步切换器，使新会话出现在筛选后的列表中
+    await addTab(prov, cwd, title);
     setLastCwd(cwd);
     await settingSet("lastCwd", cwd).catch(() => {});
   };
@@ -121,6 +119,8 @@ export default function App() {
           </button>
         ) : (
           <Sidebar
+            provider={provider}
+            onProviderChange={setProvider}
             onNewTab={() => setShowNew(true)}
             onCollapse={() => setCollapsed(true)}
           />
@@ -140,6 +140,7 @@ export default function App() {
                 <ErrorBoundary key={t.id}>
                   <TerminalPane
                     tabId={t.id}
+                    provider={t.provider}
                     program={providerProgram(t.provider)}
                     args={buildArgs(
                       t.provider,
@@ -160,6 +161,7 @@ export default function App() {
 
       {showNew && (
         <NewTabDialog
+          defaultProvider={provider}
           defaultCwd={lastCwd}
           onConfirm={handleConfirm}
           onCancel={() => setShowNew(false)}

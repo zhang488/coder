@@ -76,9 +76,28 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 2px 2px 0;
 }
 
 .sidebar-head .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.brand-name {
   font-size: 14px;
   font-weight: 600;
   color: #e6e6e6;
@@ -99,27 +118,84 @@ body {
   color: #fff;
 }
 
+/* Provider 切换器 */
+.provider-switch {
+  display: flex;
+  gap: 6px;
+  background: #202022;
+  padding: 4px;
+  border-radius: 9px;
+}
+
+.provider-pill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #999;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s, color 0.12s;
+}
+
+.provider-pill:hover {
+  color: #ddd;
+}
+
+.provider-pill.on {
+  background: #2c2c30;
+}
+
+.pill-badge {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
 .new-session {
-  background: #5865f2;
   color: #fff;
   border: none;
-  border-radius: 6px;
-  padding: 8px;
+  border-radius: 8px;
+  padding: 9px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: filter 0.12s;
 }
 
 .new-session:hover {
-  background: #6b76f5;
+  filter: brightness(1.12);
 }
 
 .sidebar .search {
   background: #2a2a2c;
   color: #e0e0e0;
   border: 1px solid #3a3a3c;
-  border-radius: 6px;
-  padding: 6px 8px;
+  border-radius: 8px;
+  padding: 7px 10px;
   font-size: 12px;
+  outline: none;
+}
+
+.sidebar .search:focus {
+  border-color: #555;
 }
 
 .section-title {
@@ -128,6 +204,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 4px;
+  padding: 0 2px;
 }
 
 .session-list {
@@ -151,10 +228,11 @@ body {
 .session-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 6px;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 8px;
   cursor: pointer;
+  position: relative;
 }
 
 .session-item:hover {
@@ -162,7 +240,19 @@ body {
 }
 
 .session-item.active {
-  background: #2d2f3a;
+  background: #2a2c33;
+}
+
+/* 选中项左侧高亮条 */
+.session-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: #5b8cff;
 }
 
 /* 已关闭的历史会话：整体弱化 */
@@ -551,10 +641,16 @@ body {
   padding: 4px;
 }
 
-/* IME 候选框跟随光标：textarea 字体与终端一致，定位由 JS 同步到光标 */
+/* IME 候选框跟随光标：textarea 字体与终端一致、尺寸最小且不可见，
+   定位由 JS 持续同步到光标，仅用于承载输入与 IME 合成 */
 .terminal-host .xterm-helper-textarea {
   font-family: "Consolas", "Courier New", monospace !important;
   font-size: 14px !important;
+  width: 1px !important;
+  height: 1em !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  resize: none !important;
 }
 
 /* 滚动条槽常驻，避免出现/消失改变可用宽度导致列数横跳、画面抖动 */

@@ -4,10 +4,12 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { spawnPty, writePty, resizePty, killPty } from "../lib/pty";
+import { acquireAntigravitySlot } from "../lib/launchQueue";
 import { useTabsStore } from "../stores/tabs";
 
 interface TerminalPaneProps {
   tabId: string;
+  provider: string;
   program: string;
   args?: string[];
   cwd: string;
@@ -22,6 +24,7 @@ interface TerminalPaneProps {
  */
 export default function TerminalPane({
   tabId,
+  provider,
   program,
   args,
   cwd,
@@ -72,10 +75,14 @@ export default function TerminalPane({
     termRef.current = term;
     fitRef.current = fitAddon;
 
-    // 修正中文输入法（IME）候选框位置：合成时把隐藏 textarea 定位到光标处，
-    // 否则候选框会飘到终端角落，输入中文时看起来像画面抖动。
+    // 中文输入法（IME）候选框跟随光标：
+    // 持续把隐藏的 textarea 同步到终端光标位置，使系统候选框贴着光标弹出；
+    // 中文合成（选字）期间冻结位置，避免 TUI 高频重绘把候选框带得乱跳（抖动）。
     const textarea = term.textarea;
-    const repositionIme = () => {
+    let composing = false;
+    let imeRaf = 0;
+    const placeTextarea = () => {
+      imeRaf = 0;
       const screenEl = hostRef.current?.querySelector(
         ".xterm-screen",
       ) as HTMLElement | null;
@@ -83,11 +90,29 @@ export default function TerminalPane({
       const cellW = screenEl.clientWidth / term.cols;
       const cellH = screenEl.clientHeight / term.rows;
       const buf = term.buffer.active;
-      textarea.style.left = `${Math.round(buf.cursorX * cellW)}px`;
-      textarea.style.top = `${Math.round(buf.cursorY * cellH)}px`;
+      // 纵向钉在视口底部行：CLI（claude/gemini 等 TUI）输入框恒在底部，
+      // 且其硬件光标常被 park 到顶部，不能直接用 cursorY。
+      // 横向跟随 cursorX：普通 shell 时贴着光标，TUI 时为 0 即贴输入行左侧。
+      const left = screenEl.offsetLeft + buf.cursorX * cellW;
+      const top = screenEl.offsetTop + (term.rows - 1) * cellH;
+      textarea.style.left = `${Math.round(left)}px`;
+      textarea.style.top = `${Math.round(top)}px`;
     };
-    textarea?.addEventListener("compositionstart", repositionIme);
-    textarea?.addEventListener("compositionupdate", repositionIme);
+    const schedulePlace = () => {
+      if (composing || imeRaf) return; // 合成期间冻结；每帧最多一次
+      imeRaf = requestAnimationFrame(placeTextarea);
+    };
+    const onCursorMove = term.onCursorMove(schedulePlace);
+    const onRenderEv = term.onRender(schedulePlace);
+    const onCompStart = () => {
+      composing = true;
+      placeTextarea(); // 选字前定位一次，之后冻结
+    };
+    const onCompEnd = () => {
+      composing = false;
+    };
+    textarea?.addEventListener("compositionstart", onCompStart);
+    textarea?.addEventListener("compositionend", onCompEnd);
 
     try {
       fitAddon.fit();
@@ -100,29 +125,39 @@ export default function TerminalPane({
 
     let disposed = false;
 
-    spawnPty({ program, args, cwd, cols, rows }, (ev) => {
-      if (disposed) return;
-      if (ev.event === "output") {
-        term.write(new Uint8Array(ev.data));
-      } else if (ev.event === "exit") {
+    const launch = async () => {
+      // antigravity 经串行闸门错峰启动，避免多实例并发登录冲突
+      if (provider === "antigravity") {
         term.write(
-          `\r\n\x1b[33m[进程已退出，退出码 ${ev.code ?? "未知"}]\x1b[0m\r\n`,
+          "\x1b[2m正在排队启动 Antigravity（错峰以避免并发登录冲突）…\x1b[0m\r\n",
         );
-        setRuntime(tabId, { status: "exited", exitCode: ev.code ?? null });
+        await acquireAntigravitySlot();
+        if (disposed) return;
       }
-    })
-      .then((id) => {
+      try {
+        const id = await spawnPty({ program, args, cwd, cols, rows }, (ev) => {
+          if (disposed) return;
+          if (ev.event === "output") {
+            term.write(new Uint8Array(ev.data));
+          } else if (ev.event === "exit") {
+            term.write(
+              `\r\n\x1b[33m[进程已退出，退出码 ${ev.code ?? "未知"}]\x1b[0m\r\n`,
+            );
+            setRuntime(tabId, { status: "exited", exitCode: ev.code ?? null });
+          }
+        });
         if (disposed) {
           killPty(id).catch(() => {});
           return;
         }
         ptyIdRef.current = id;
         setRuntime(tabId, { status: "running", ptyId: id });
-      })
-      .catch((err) => {
+      } catch (err) {
         term.write(`\r\n\x1b[31m[启动失败] ${err}\x1b[0m\r\n`);
         setRuntime(tabId, { status: "exited", exitCode: null });
-      });
+      }
+    };
+    launch();
 
     const onData = term.onData((data) => {
       const id = ptyIdRef.current;
@@ -141,7 +176,12 @@ export default function TerminalPane({
     return () => {
       disposed = true;
       if (raf) cancelAnimationFrame(raf);
+      if (imeRaf) cancelAnimationFrame(imeRaf);
       onData.dispose();
+      onCursorMove.dispose();
+      onRenderEv.dispose();
+      textarea?.removeEventListener("compositionstart", onCompStart);
+      textarea?.removeEventListener("compositionend", onCompEnd);
       ro.disconnect();
       if (ptyIdRef.current) killPty(ptyIdRef.current).catch(() => {});
       term.dispose();

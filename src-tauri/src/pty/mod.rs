@@ -38,6 +38,39 @@ pub struct PtyManager {
     map: Mutex<HashMap<String, PtyHandle>>,
 }
 
+/// 在 PATH 中把命令名解析为可直接执行的 `.exe` 全路径。
+/// - 已带路径分隔符：直接判断其存在性（必要时补 `.exe`）。
+/// - 纯命令名：遍历 PATH 查找 `<program>.exe`。
+/// 找不到返回 None，调用方回退到 `cmd /c`（适配 .cmd/.bat 脚本）。
+#[cfg(windows)]
+fn resolve_exe(program: &str) -> Option<std::path::PathBuf> {
+    use std::path::{Path, PathBuf};
+    let p = Path::new(program);
+    if program.contains('\\') || program.contains('/') {
+        if p.is_file() {
+            return Some(p.to_path_buf());
+        }
+        let exe = p.with_extension("exe");
+        return exe.is_file().then_some(exe);
+    }
+    let has_ext = p.extension().is_some();
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        // 命令本身可能已带扩展名
+        if has_ext {
+            let cand = dir.join(program);
+            if cand.is_file() {
+                return Some(cand);
+            }
+        }
+        let cand: PathBuf = dir.join(format!("{program}.exe"));
+        if cand.is_file() {
+            return Some(cand);
+        }
+    }
+    None
+}
+
 /// 启动一个 PTY 进程，返回后端分配的句柄 id。
 #[tauri::command]
 pub fn pty_spawn(
@@ -59,19 +92,33 @@ pub fn pty_spawn(
         })
         .map_err(|e| format!("openpty 失败: {e}"))?;
 
-    // Windows 上 claude/gemini 等 CLI 多由 npm 安装，本体是 .cmd/.ps1 脚本或
-    // 无扩展名 shell 脚本，CreateProcessW 无法直接执行（os error 193）。
-    // 统一经 cmd.exe /c 启动，让其按 PATHEXT 解析到 .cmd/.exe。
-    // 若用户已给出 .exe 全路径，cmd /c 同样可直接执行。
+    // Windows 进程启动策略：
+    // 1) 优先在 PATH 中解析出真正的 `<program>.exe` 并【直接启动】。
+    //    这样像 agy.exe / claude.exe 这类原生程序不经 cmd 中转——避免多一层
+    //    cmd 进程改变进程上下文，导致 Windows 凭据管理器(keyring)访问异常
+    //    （表现为 agy 每次启动都要求重新登录 Google 账号）。
+    // 2) 解析不到 .exe（如 npm 安装的 .cmd/.bat 脚本）才回退 `cmd.exe /c`，
+    //    让其按 PATHEXT 解析（否则 CreateProcessW 报 os error 193）。
     #[cfg(windows)]
     let mut cmd = {
-        let mut c = CommandBuilder::new("cmd.exe");
-        c.arg("/c");
-        c.arg(&program);
-        for a in &args {
-            c.arg(a);
+        match resolve_exe(&program) {
+            Some(exe) => {
+                let mut c = CommandBuilder::new(exe);
+                for a in &args {
+                    c.arg(a);
+                }
+                c
+            }
+            None => {
+                let mut c = CommandBuilder::new("cmd.exe");
+                c.arg("/c");
+                c.arg(&program);
+                for a in &args {
+                    c.arg(a);
+                }
+                c
+            }
         }
-        c
     };
     #[cfg(not(windows))]
     let mut cmd = {

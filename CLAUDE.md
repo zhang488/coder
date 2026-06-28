@@ -4,9 +4,21 @@
 
 ## 项目简介
 
-一个桌面端管理软件，用于**多标签管理 Claude Code 与 Gemini CLI 的会话**。每个标签托管一个真实的 CLI 进程，用户在标签内像使用终端一样与 AI 编码助手交互；应用负责标签管理、会话索引、历史会话浏览与恢复。
+一个桌面端管理软件，用于**多标签管理 Claude Code 与 Google Antigravity 的会话**。每个标签托管一个真实的 CLI 进程，用户在标签内像使用终端一样与 AI 编码助手交互；应用负责标签管理、会话索引、历史会话浏览与恢复。
 
-第一版优先支持 **Claude Code**，后续抽象扩展到 Gemini。
+第一版优先支持 **Claude Code**，已扩展接入 Antigravity（`agy` CLI）。
+
+### Provider 会话能力差异（接入时注意）
+
+| Provider | 程序 | 新建会话 | 恢复会话 |
+|----------|------|----------|----------|
+| Claude   | `claude` | `--session-id <uuid>`（自带 id 创建） | `--resume <uuid>`（精确续接） |
+| Antigravity | `agy` | 直接启动 | `--conversation <id>` 精确续接，回退 `--continue` |
+
+> Antigravity(agy) 不支持预指定会话 id，但它把「工作目录 → 会话 id」映射存于
+> `~/.gemini/antigravity-cli/cache/projects.json`。后端 `agy::agy_conversation_id`
+> 按 cwd 解析出真实会话 id，store 在标签渲染前覆盖到 `sessionId`，再由
+> `src/lib/providers.ts` 的 `buildArgs` 生成 `--conversation <id>`；解析不到则回退 `--continue`。
 
 ## 核心架构：PTY 终端托管
 

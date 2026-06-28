@@ -1,3 +1,4 @@
+mod agy;
 mod db;
 mod pty;
 mod tray;
@@ -35,6 +36,7 @@ pub fn run() {
             db::setting_set,
             tray::hide_to_tray,
             tray::quit_app,
+            agy::agy_list_conversations,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

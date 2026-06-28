@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { useTabsStore } from "../stores/tabs";
-import { PROVIDERS } from "../lib/providers";
+import { PROVIDERS, PROVIDER_KEYS } from "../lib/providers";
 
 interface SidebarProps {
+  /** 当前选中的 provider（筛选 + 新建默认） */
+  provider: string;
+  onProviderChange: (provider: string) => void;
   onNewTab: () => void;
   onCollapse: () => void;
 }
@@ -16,11 +19,15 @@ const dotColor = (isOpen: boolean, status?: string) => {
 };
 
 /**
- * 左侧边栏：新建会话、搜索、统一会话列表（打开的与历史合并）。
- * - 打开的会话：指示灯亮，点击切换，× 关闭（移入历史）
- * - 历史会话：指示灯灭，点击恢复续接，× 彻底删除
+ * 左侧边栏：顶部 provider 切换器、新建会话、搜索、统一会话列表。
+ * 切换器选中的 provider 同时用于：筛选会话列表 + 作为新建会话默认。
  */
-export default function Sidebar({ onNewTab, onCollapse }: SidebarProps) {
+export default function Sidebar({
+  provider,
+  onProviderChange,
+  onNewTab,
+  onCollapse,
+}: SidebarProps) {
   const tabs = useTabsStore((s) => s.tabs);
   const history = useTabsStore((s) => s.history);
   const activeId = useTabsStore((s) => s.activeId);
@@ -34,24 +41,60 @@ export default function Sidebar({ onNewTab, onCollapse }: SidebarProps) {
   const kw = keyword.trim().toLowerCase();
 
   const openIds = new Set(tabs.map((t) => t.id));
-  // 打开的在前，历史在后，合并为单一列表
+  // 按 provider 筛选 + 关键词过滤；打开的在前，历史在后
   const items = [...tabs, ...history].filter(
     (t) =>
-      !kw ||
-      t.title.toLowerCase().includes(kw) ||
-      t.cwd.toLowerCase().includes(kw),
+      t.provider === provider &&
+      (!kw ||
+        t.title.toLowerCase().includes(kw) ||
+        t.cwd.toLowerCase().includes(kw)),
   );
+
+  const cur = PROVIDERS[provider];
 
   return (
     <div className="sidebar">
       <div className="sidebar-head">
-        <span className="brand">AI Coder</span>
+        <div className="brand">
+          <span
+            className="brand-badge"
+            style={{ background: cur?.color ?? "#5865f2" }}
+          >
+            {cur?.badge ?? "AI"}
+          </span>
+          <span className="brand-name">Coder</span>
+        </div>
         <button className="icon-btn" title="折叠侧边栏" onClick={onCollapse}>
           «
         </button>
       </div>
 
-      <button className="new-session" onClick={onNewTab}>
+      {/* Provider 切换器 */}
+      <div className="provider-switch">
+        {PROVIDER_KEYS.map((key) => {
+          const p = PROVIDERS[key];
+          const on = key === provider;
+          return (
+            <button
+              key={key}
+              className={`provider-pill ${on ? "on" : ""}`}
+              style={on ? { borderColor: p.color, color: "#fff" } : undefined}
+              onClick={() => onProviderChange(key)}
+            >
+              <span className="pill-badge" style={{ background: p.color }}>
+                {p.badge}
+              </span>
+              {p.short}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        className="new-session"
+        style={{ background: cur?.color ?? "#5865f2" }}
+        onClick={onNewTab}
+      >
         ＋ 新建会话
       </button>
 
@@ -62,13 +105,14 @@ export default function Sidebar({ onNewTab, onCollapse }: SidebarProps) {
         placeholder="搜索会话…"
       />
 
-      <div className="section-title">会话</div>
+      <div className="section-title">{cur?.label ?? "会话"}</div>
       <div className="session-list">
         {items.length === 0 ? (
           <div className="hint">{kw ? "无匹配会话" : "暂无会话"}</div>
         ) : (
           items.map((t) => {
             const isOpen = openIds.has(t.id);
+            const dir = t.cwd.split(/[\\/]/).filter(Boolean).pop() ?? t.cwd;
             return (
               <div
                 key={t.id}
@@ -76,9 +120,7 @@ export default function Sidebar({ onNewTab, onCollapse }: SidebarProps) {
                   isOpen ? "" : "closed"
                 }`}
                 onClick={() => (isOpen ? setActive(t.id) : reopenTab(t.id))}
-                title={
-                  isOpen ? t.cwd : `${t.cwd}\n点击恢复并续接上次对话`
-                }
+                title={isOpen ? t.cwd : `${t.cwd}\n点击恢复并续接上次对话`}
               >
                 <span
                   className="dot"
@@ -86,9 +128,7 @@ export default function Sidebar({ onNewTab, onCollapse }: SidebarProps) {
                 />
                 <div className="meta">
                   <div className="name">{t.title}</div>
-                  <div className="sub">
-                    {PROVIDERS[t.provider]?.label ?? t.provider} · {t.cwd}
-                  </div>
+                  <div className="sub">{dir}</div>
                 </div>
                 <span
                   className="close"
@@ -98,9 +138,7 @@ export default function Sidebar({ onNewTab, onCollapse }: SidebarProps) {
                     if (isOpen) {
                       closeTab(t.id);
                     } else if (
-                      confirm(
-                        `删除历史会话「${t.title}」？对话文件不会被删除。`,
-                      )
+                      confirm(`删除历史会话「${t.title}」？对话文件不会被删除。`)
                     ) {
                       deleteHistory(t.id);
                     }

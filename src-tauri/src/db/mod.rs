@@ -126,7 +126,13 @@ pub fn tab_create(
 ) -> Result<TabRecord, String> {
     let conn = db.0.lock().unwrap();
     let id = uuid::Uuid::new_v4().to_string();
-    let session_id = uuid::Uuid::new_v4().to_string();
+    // 仅 claude 支持用我们指定的 id 创建会话（--session-id）；
+    // antigravity 等由 CLI 自行生成会话 id，启动后再捕获回填，初始留空。
+    let session_id = if provider == "claude" {
+        Some(uuid::Uuid::new_v4().to_string())
+    } else {
+        None
+    };
     let ts = now();
     let sort_order: i64 = conn
         .query_row("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tabs", [], |r| {
@@ -143,7 +149,7 @@ pub fn tab_create(
         id,
         provider,
         cwd,
-        session_id: Some(session_id),
+        session_id,
         title,
         sort_order,
         is_active: false,

@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { PROVIDERS } from "../lib/providers";
 
 interface NewTabDialogProps {
+  defaultProvider?: string;
   defaultCwd?: string;
   onConfirm: (provider: string, cwd: string, title: string) => void;
   onCancel: () => void;
@@ -10,11 +11,12 @@ interface NewTabDialogProps {
 
 /** 新建标签弹层：选择 provider、工作目录与标题 */
 export default function NewTabDialog({
+  defaultProvider,
   defaultCwd,
   onConfirm,
   onCancel,
 }: NewTabDialogProps) {
-  const [provider, setProvider] = useState("claude");
+  const [provider, setProvider] = useState(defaultProvider ?? "claude");
   const [cwd, setCwd] = useState(defaultCwd ?? "");
   const [title, setTitle] = useState("");
 
