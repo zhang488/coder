@@ -2,10 +2,15 @@ import { useEffect, useRef } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { spawnPty, writePty, resizePty, killPty } from "../lib/pty";
 import { acquireAntigravitySlot } from "../lib/launchQueue";
 import { useTabsStore } from "../stores/tabs";
+
+/** 终端字体栈：完整 Nerd 字体优先，回退 Consolas */
+const TERMINAL_FONT =
+  '"Caskaydia Cove Nerd Font Mono", "Consolas", "Courier New", monospace';
 
 interface TerminalPaneProps {
   tabId: string;
@@ -61,19 +66,51 @@ export default function TerminalPane({
     if (!hostRef.current) return;
 
     const term = new XTerm({
-      // 使用 Windows 必装的 Consolas，避免测量字体与渲染字体不一致导致抖动
-      fontFamily: '"Consolas", "Courier New", monospace',
+      // 单一完整 Nerd 字体：文字与图标同源、等宽一致，CLI 状态栏对齐不漂移。
+      // 不设 letterSpacing：DOM 渲染器在 letterSpacing≠0 时存在字符不重绘的
+      // 缺陷，表现为「不选中不显示、选中才正常」。
+      fontFamily: TERMINAL_FONT,
       fontSize: 14,
       cursorBlink: true,
       allowProposedApi: true,
-      theme: { background: "#1e1e1e", foreground: "#e0e0e0" },
+      // 完整 ANSI 调色板：CLI 底部状态栏/统计信息大量用 ANSI 颜色与 dim，
+      // 缺省调色板对比度差会发暗看不清，这里用一套高对比配色。
+      theme: {
+        background: "#1e1e1e",
+        foreground: "#d4d4d4",
+        cursor: "#d4d4d4",
+        selectionBackground: "#264f78",
+        black: "#1e1e1e",
+        red: "#f14c4c",
+        green: "#4ec9b0",
+        yellow: "#d7ba7d",
+        blue: "#569cd6",
+        magenta: "#c586c0",
+        cyan: "#4fc1ff",
+        white: "#d4d4d4",
+        brightBlack: "#808080",
+        brightRed: "#f14c4c",
+        brightGreen: "#4ec9b0",
+        brightYellow: "#d7ba7d",
+        brightBlue: "#569cd6",
+        brightMagenta: "#c586c0",
+        brightCyan: "#4fc1ff",
+        brightWhite: "#ffffff",
+      },
     });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.loadAddon(new WebLinksAddon());
+    // Unicode 11 宽度表：让 emoji（📂🤖⏱ 等）按 2 格宽计算，与 CLI 排版一致，
+    // 否则 xterm 按 1 格塞入 emoji 会强加大幅负字距导致重叠盖字。
+    term.loadAddon(new Unicode11Addon());
+    term.unicode.activeVersion = "11";
     term.open(hostRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
+
+    // 使用默认 DOM 渲染器：真实 DOM 文本，原生字体回退与度量，
+    // 始终如实反映 CLI 每次交互的实时刷新（无纹理图集，不会卡住更新）。
 
     // 中文输入法（IME）候选框跟随光标：
     // 持续把隐藏的 textarea 同步到终端光标位置，使系统候选框贴着光标弹出；
@@ -124,6 +161,15 @@ export default function TerminalPane({
     lastSize.current = { cols, rows };
 
     let disposed = false;
+
+    // 字体可能在 open() 后才加载完成（用回退字体测量了字符尺寸）。
+    // 字体就绪后重新 fit + 整体重绘，使排版按正确字体度量刷新。
+    document.fonts?.ready?.then(() => {
+      if (disposed) return;
+      lastSize.current = { cols: 0, rows: 0 }; // 让 sync 必定重算尺寸
+      sync();
+      term.refresh(0, term.rows - 1);
+    });
 
     const launch = async () => {
       // antigravity 经串行闸门错峰启动，避免多实例并发登录冲突

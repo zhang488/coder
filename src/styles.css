@@ -1,3 +1,21 @@
+/* 终端字体：完整的 CaskaydiaCove Nerd Font Mono（Cascadia + Nerd 图标合体，
+   Mono 版图标强制单格宽）。文字与图标同源、宽度一致，CLI 状态栏对齐不漂移。
+   用单一完整字体而非「Consolas + 图标回退」两套，避免跨字体宽度不一致。 */
+@font-face {
+  font-family: "Caskaydia Cove Nerd Font Mono";
+  src: url("./assets/fonts/CaskaydiaCoveNerdFontMono-Regular.ttf")
+    format("truetype");
+  font-weight: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Caskaydia Cove Nerd Font Mono";
+  src: url("./assets/fonts/CaskaydiaCoveNerdFontMono-Bold.ttf")
+    format("truetype");
+  font-weight: bold;
+  font-display: block;
+}
+
 :root {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
     sans-serif;
@@ -629,22 +647,24 @@ body {
   cursor: pointer;
 }
 
-/* 终端容器：在 .panes 内绝对定位铺满，多个面板叠放，用 display 切换 */
+/* 终端容器：在 .panes 内绝对定位铺满，多个面板叠放，用 display 切换。
+   内边距放在容器上，xterm 本体保持无 padding，避免干扰 FitAddon 测量列宽
+   （否则 CLI 底部全宽状态栏会因宽度错位而换行/挤压）。 */
 .terminal-host {
   position: absolute;
   inset: 0;
   background: #1e1e1e;
+  padding: 4px 0 4px 4px;
 }
 
 .terminal-host .xterm {
   height: 100%;
-  padding: 4px;
 }
 
 /* IME 候选框跟随光标：textarea 字体与终端一致、尺寸最小且不可见，
    定位由 JS 持续同步到光标，仅用于承载输入与 IME 合成 */
 .terminal-host .xterm-helper-textarea {
-  font-family: "Consolas", "Courier New", monospace !important;
+  font-family: "Caskaydia Cove Nerd Font Mono", "Consolas", monospace !important;
   font-size: 14px !important;
   width: 1px !important;
   height: 1em !important;
@@ -659,7 +679,7 @@ body {
 }
 
 .terminal-host .xterm-viewport::-webkit-scrollbar {
-  width: 10px;
+  width: 7px;
 }
 
 .terminal-host .xterm-viewport::-webkit-scrollbar-thumb {
