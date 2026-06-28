@@ -27,10 +27,15 @@ pub struct TabRecord {
     pub is_active: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: i64,
+    /// 模型（--model）；None/空表示用 CLI 默认
+    pub model: Option<String>,
+    /// 是否跳过权限确认（--dangerously-skip-permissions）
+    #[serde(rename = "skipPermissions")]
+    pub skip_permissions: bool,
 }
 
-const TAB_COLUMNS: &str =
-    "id, provider, cwd, session_id, title, sort_order, is_active, updated_at";
+const TAB_COLUMNS: &str = "id, provider, cwd, session_id, title, sort_order, \
+     is_active, updated_at, model, skip_permissions";
 
 fn row_to_tab(r: &Row) -> rusqlite::Result<TabRecord> {
     Ok(TabRecord {
@@ -42,6 +47,8 @@ fn row_to_tab(r: &Row) -> rusqlite::Result<TabRecord> {
         sort_order: r.get(5)?,
         is_active: r.get::<_, i64>(6)? != 0,
         updated_at: r.get(7)?,
+        model: r.get(8)?,
+        skip_permissions: r.get::<_, i64>(9)? != 0,
     })
 }
 
@@ -65,6 +72,8 @@ pub fn init(app: &AppHandle) -> Result<Db, String> {
             sort_order  INTEGER NOT NULL,
             is_active   INTEGER NOT NULL DEFAULT 0,
             is_open     INTEGER NOT NULL DEFAULT 1,
+            model       TEXT,
+            skip_permissions INTEGER NOT NULL DEFAULT 0,
             created_at  INTEGER NOT NULL,
             updated_at  INTEGER NOT NULL
         );
@@ -76,9 +85,14 @@ pub fn init(app: &AppHandle) -> Result<Db, String> {
     )
     .map_err(|e| format!("建表失败: {e}"))?;
 
-    // 旧库升级：补 is_open 列（列已存在时报错，忽略）
+    // 旧库升级：补列（列已存在时报错，忽略）
     let _ = conn.execute(
         "ALTER TABLE tabs ADD COLUMN is_open INTEGER NOT NULL DEFAULT 1",
+        [],
+    );
+    let _ = conn.execute("ALTER TABLE tabs ADD COLUMN model TEXT", []);
+    let _ = conn.execute(
+        "ALTER TABLE tabs ADD COLUMN skip_permissions INTEGER NOT NULL DEFAULT 0",
         [],
     );
 
@@ -123,6 +137,8 @@ pub fn tab_create(
     provider: String,
     cwd: String,
     title: String,
+    model: Option<String>,
+    skip_permissions: bool,
 ) -> Result<TabRecord, String> {
     let conn = db.0.lock().unwrap();
     let id = uuid::Uuid::new_v4().to_string();
@@ -133,6 +149,8 @@ pub fn tab_create(
     } else {
         None
     };
+    // 空字符串模型视为「默认」
+    let model = model.filter(|m| !m.trim().is_empty());
     let ts = now();
     let sort_order: i64 = conn
         .query_row("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM tabs", [], |r| {
@@ -140,9 +158,9 @@ pub fn tab_create(
         })
         .map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO tabs (id, provider, cwd, session_id, title, sort_order, is_active, is_open, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 1, ?7, ?7)",
-        rusqlite::params![id, provider, cwd, session_id, title, sort_order, ts],
+        "INSERT INTO tabs (id, provider, cwd, session_id, title, sort_order, is_active, is_open, model, skip_permissions, created_at, updated_at) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, 1, ?7, ?8, ?9, ?9)",
+        rusqlite::params![id, provider, cwd, session_id, title, sort_order, model, skip_permissions as i64, ts],
     )
     .map_err(|e| e.to_string())?;
     Ok(TabRecord {
@@ -154,6 +172,8 @@ pub fn tab_create(
         sort_order,
         is_active: false,
         updated_at: ts,
+        model,
+        skip_permissions,
     })
 }
 

@@ -34,6 +34,32 @@ export function providerProgram(provider: string): string {
   return PROVIDERS[provider]?.program ?? provider;
 }
 
+/** 模型下拉选项；value 为空串表示用 CLI 默认（不加 --model） */
+export interface ModelOption {
+  label: string;
+  value: string;
+}
+
+export const MODEL_OPTIONS: Record<string, ModelOption[]> = {
+  claude: [
+    { label: "Auto（默认）", value: "" },
+    { label: "Opus", value: "opus" },
+    { label: "Sonnet", value: "sonnet" },
+    { label: "Haiku", value: "haiku" },
+  ],
+  antigravity: [{ label: "默认", value: "" }],
+};
+
+export function modelOptions(provider: string): ModelOption[] {
+  return MODEL_OPTIONS[provider] ?? [{ label: "默认", value: "" }];
+}
+
+/** 启动选项：模型与是否跳过权限确认 */
+export interface LaunchOpts {
+  model?: string | null;
+  skipPermissions?: boolean;
+}
+
 /** 启动模式：new=以指定 session 新建；resume=续接已有对话 */
 export type LaunchMode = "new" | "resume";
 
@@ -51,15 +77,27 @@ export function buildArgs(
   provider: string,
   sessionId: string | null,
   mode: LaunchMode,
+  opts: LaunchOpts = {},
 ): string[] {
+  const args: string[] = [];
+
+  // 会话相关参数
   if (provider === "claude" && sessionId) {
-    return mode === "resume"
-      ? ["--resume", sessionId]
-      : ["--session-id", sessionId];
+    args.push(...(mode === "resume" ? ["--resume", sessionId] : ["--session-id", sessionId]));
+  } else if (provider === "antigravity" && mode === "resume") {
+    args.push(...(sessionId ? ["--conversation", sessionId] : ["--continue"]));
   }
-  if (provider === "antigravity") {
-    if (mode !== "resume") return [];
-    return sessionId ? ["--conversation", sessionId] : ["--continue"];
+
+  // 模型（claude / antigravity 均支持 --model）
+  const model = opts.model?.trim();
+  if (model) {
+    args.push("--model", model);
   }
-  return [];
+
+  // 跳过权限确认（claude / antigravity 均支持 --dangerously-skip-permissions）
+  if (opts.skipPermissions) {
+    args.push("--dangerously-skip-permissions");
+  }
+
+  return args;
 }

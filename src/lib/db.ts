@@ -10,6 +10,8 @@ export interface TabRecord {
   sortOrder: number;
   isActive: boolean;
   updatedAt: number;
+  model: string | null;
+  skipPermissions: boolean;
 }
 
 export async function tabsList(): Promise<TabRecord[]> {
@@ -25,8 +27,16 @@ export async function tabCreate(
   provider: string,
   cwd: string,
   title: string,
+  model: string | null,
+  skipPermissions: boolean,
 ): Promise<TabRecord> {
-  return invoke<TabRecord>("tab_create", { provider, cwd, title });
+  return invoke<TabRecord>("tab_create", {
+    provider,
+    cwd,
+    title,
+    model,
+    skipPermissions,
+  });
 }
 
 export async function tabUpdate(

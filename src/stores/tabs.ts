@@ -46,7 +46,13 @@ interface TabsState {
 
   loadAll: () => Promise<void>;
   loadHistory: () => Promise<void>;
-  addTab: (provider: string, cwd: string, title: string) => Promise<void>;
+  addTab: (
+    provider: string,
+    cwd: string,
+    title: string,
+    model: string | null,
+    skipPermissions: boolean,
+  ) => Promise<void>;
   closeTab: (id: string) => Promise<void>;
   reopenTab: (id: string) => Promise<void>;
   deleteHistory: (id: string) => Promise<void>;
@@ -76,11 +82,11 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     set({ history });
   },
 
-  async addTab(provider, cwd, title) {
+  async addTab(provider, cwd, title, model, skipPermissions) {
     // antigravity：启动前快照现有会话，用于稍后捕获本次新建的真实会话 id
     const snapshot =
       provider === "antigravity" ? await agyListConversations() : [];
-    const rec = await tabCreate(provider, cwd, title);
+    const rec = await tabCreate(provider, cwd, title, model, skipPermissions);
     set((s) => ({
       tabs: [...s.tabs, rec],
       // 新建会话 → new 模式（claude 用 --session-id，antigravity 直接启动）

@@ -83,10 +83,16 @@ export default function App() {
     else await quitApp();
   };
 
-  const handleConfirm = async (prov: string, cwd: string, title: string) => {
+  const handleConfirm = async (
+    prov: string,
+    cwd: string,
+    title: string,
+    model: string,
+    skipPermissions: boolean,
+  ) => {
     setShowNew(false);
     setProvider(prov); // 同步切换器，使新会话出现在筛选后的列表中
-    await addTab(prov, cwd, title);
+    await addTab(prov, cwd, title, model || null, skipPermissions);
     setLastCwd(cwd);
     await settingSet("lastCwd", cwd).catch(() => {});
   };
@@ -146,6 +152,7 @@ export default function App() {
                       t.provider,
                       t.sessionId,
                       runtime[t.id]?.mode ?? "resume",
+                      { model: t.model, skipPermissions: t.skipPermissions },
                     )}
                     cwd={t.cwd}
                     active={t.id === activeId}
